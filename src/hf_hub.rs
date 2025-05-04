@@ -3,7 +3,7 @@ use hf_hub::{
     Repo, RepoType,
     api::sync::{ApiBuilder, ApiRepo as HFApiRepo},
 };
-use std::{ops::Deref, path::PathBuf};
+use std::{fs::File, ops::Deref, path::PathBuf};
 
 pub struct ApiRepo {
     model_id: String,
@@ -19,10 +19,6 @@ impl Deref for ApiRepo {
 }
 
 impl ApiRepo {
-    pub fn model_id(&self) -> &str {
-        &self.model_id
-    }
-
     pub fn from_pretrained(
         model_id: &str,
         revision: Option<&str>,
@@ -50,6 +46,10 @@ impl ApiRepo {
         })
     }
 
+    pub fn model_id(&self) -> &str {
+        &self.model_id
+    }
+
     pub fn download_safetensors(&self, json_file: &str) -> Result<Vec<PathBuf>> {
         let json_file = self.get(json_file).map_err(E::wrap)?;
         let safetensors_files = super::read_safetensors_index_file(json_file)?;
@@ -68,8 +68,11 @@ impl ApiRepo {
         self.get("tokenizer.json").map_err(E::wrap)
     }
 
-    pub fn config(&self) -> Result<PathBuf> {
-        self.get("config.json").map_err(E::wrap)
+    pub fn config<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
+        let config = self.get("config.json").map_err(E::wrap)?;
+        let config = File::open(config).map_err(E::wrap)?;
+
+        serde_json::from_reader(config).map_err(E::wrap)
     }
 
     pub fn safetensors(&self) -> Result<Vec<PathBuf>> {

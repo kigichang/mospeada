@@ -7,15 +7,24 @@ edition = "2024"
 candle-core = "0.9.1"
 candle-nn = "0.9.1"
 candle-transformers = "0.9.1"
+accelerate-src = { version = "0.3.2", optional = true }
+bindgen_cuda = { version = "0.1.5", optional = true }
+intel-mkl-src = { version = "0.8.1", optional = true }
 hf-hub = "0.4.2"
-minijinja = {version = "2.9.0" }
+minijinja = {version = "2.9.0", features = ["loader"]}
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 tokenizers = "0.21.1"
+thiserror = "2.0.12"
 
 [dev-dependencies]
 anyhow = "1.0.98"
+rand = "0.9.1"
 
 [features]
 default = ["hf_hub"]
 hf_hub = []
+accelerate = ["dep:accelerate-src", "candle-core/accelerate", "candle-nn/accelerate"]
+cuda = ["dep:bindgen_cuda", "candle-core/cuda", "candle-nn/cuda"]
+mkl = ["dep:intel-mkl-src", "candle-core/mkl", "candle-nn/mkl"]
+metal = ["candle-core/metal", "candle-nn/metal"]

@@ -22,6 +22,12 @@ pub struct GenerationConfig {
 }
 
 impl GenerationConfig {
+    #[cfg(feature = "hf_hub")]
+    pub fn from_pretrained(repo: &crate::hf_hub::ApiRepo) -> Result<Self> {
+        let generation_config = repo.generation_config()?;
+        Self::from_file(generation_config)
+    }
+
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let file = File::open(path).map_err(|e| E::Msg(format!("Failed to open file: {}", e)))?;
         serde_json::from_reader(file).map_err(|e| E::Msg(format!("failed to parse JSON: {}", e)))
@@ -117,9 +123,9 @@ impl<M: Model> TextGeneration<M> {
         }
     }
 
-    pub fn run<F>(&mut self, ids: Vec<u32>, max_new_tokens: usize, cb: F) -> Result<usize>
+    pub fn run<F>(&mut self, ids: Vec<u32>, max_new_tokens: usize, mut cb: F) -> Result<usize>
     where
-        F: Fn(u32),
+        F: FnMut(u32),
     {
         self.model.reset();
         let mut tokens = ids;

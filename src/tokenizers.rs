@@ -1,46 +1,33 @@
 use candle_core::{Error as E, Result};
-use minijinja::Environment;
+use minijinja::{Environment, Template};
 use serde;
-use std::{path::Path, sync::Arc};
+use std::{fs::File, path::Path, sync::Arc};
 use tokenizers::Tokenizer as HFTokenizer;
 
 #[derive(Debug, Clone)]
-pub struct Tokenizer {
+pub struct Tokenizer<'t> {
     tokenizer: Arc<HFTokenizer>,
-    template: Option<String>,
+    template: Arc<Option<Template<'t, 't>>>,
     tokens: Vec<u32>,
     prev_index: usize,
     current_index: usize,
 }
 
-impl Tokenizer {
+impl<'t> Tokenizer<'t> {
     pub fn tokenizer(&self) -> &HFTokenizer {
         &self.tokenizer
     }
-    pub fn apply_chat_template<S: serde::Serialize>(
-        &self,
-        prompt: S,
-        env: Environment,
-    ) -> Result<String> {
-        match self.template {
-            Some(ref template) => env.render_str(template.as_str(), prompt).map_err(E::wrap),
-            None => serde_json::to_string(&prompt).map_err(E::wrap),
-        }
-    }
-
-    #[cfg(feature = "hf_hub")]
-    pub fn from_pretrained(repo: super::hf_hub::ApiRepo) -> Result<Tokenizer> {
-        use std::fs::File;
-
-        let tokenizer_config = repo.tokenizer_config()?;
-        let tokenizer_config: serde_json::Value =
-            serde_json::from_reader(File::open(tokenizer_config)?).map_err(E::wrap)?;
-
-        let chat_template = tokenizer_config
-            .get("chat_template")
-            .and_then(|v| v.as_str().map(str::to_string));
-
-        from_file(repo.tokenizer()?, chat_template)
+    pub fn apply_chat_template<S: serde::Serialize>(&self, prompt: S) -> Result<Vec<u32>> {
+        let text = self.template.as_ref().as_ref().map_or_else(
+            || serde_json::to_string(&prompt).map_err(E::wrap),
+            |t| t.render(&prompt).map_err(E::wrap),
+        )?;
+        Ok(self
+            .tokenizer
+            .encode(text, true)
+            .map_err(E::wrap)?
+            .get_ids()
+            .to_vec())
     }
 
     fn decode(&self, tokens: &[u32]) -> Result<String> {
@@ -101,13 +88,57 @@ impl Tokenizer {
     }
 }
 
-pub fn from_file<'t, P: AsRef<Path>>(p: P, template: Option<String>) -> Result<Tokenizer> {
-    let tokenizer = HFTokenizer::from_file(p).map_err(E::wrap)?;
+fn from_files<'s, P: AsRef<Path>>(
+    name: &str,
+    tokenizer_config: P,
+    tokenizer: P,
+    env: &'s mut Environment,
+) -> Result<Tokenizer<'s>> {
+    let tokenizer = HFTokenizer::from_file(tokenizer).map_err(E::wrap)?;
+    let tokenizer_config: serde_json::Value =
+        serde_json::from_reader(File::open(tokenizer_config)?).map_err(E::wrap)?;
+
+    let chat_template = tokenizer_config
+        .get("chat_template")
+        .and_then(|v| v.as_str().map(str::to_string));
+
+    let template = if let Some(t) = chat_template {
+        Some(
+            env.add_template_owned(name.to_string(), t.to_string())
+                .and_then(|()| env.get_template(name))
+                .map_err(E::wrap)?,
+        )
+    } else {
+        None
+    };
+
     Ok(Tokenizer {
         tokenizer: Arc::new(tokenizer),
-        template,
+        template: Arc::new(template),
         tokens: Vec::new(),
         prev_index: 0,
         current_index: 0,
     })
+}
+
+pub fn load_from_cache_dir<'s, P: AsRef<Path>>(
+    cache_dir: P,
+    name: &str,
+    env: &'s mut Environment,
+) -> Result<Tokenizer<'s>> {
+    let tokenizer_config = cache_dir.as_ref().join("tokenizer_config.json");
+    let tokenizer = cache_dir.as_ref().join("tokenizer.json");
+
+    from_files(name, tokenizer_config, tokenizer, env)
+}
+
+#[cfg(feature = "hf_hub")]
+pub fn from_pretrained<'s>(
+    repo: &super::hf_hub::ApiRepo,
+    env: &'s mut Environment,
+) -> Result<Tokenizer<'s>> {
+    let tokenizer_config = repo.tokenizer_config()?;
+    let tokenizer = repo.tokenizer()?;
+
+    from_files(repo.model_id(), tokenizer_config, tokenizer, env)
 }
