@@ -1,19 +1,19 @@
-use std::{fs::File, path::Path};
-
-use candle_core::{DType, Device, Error as E, Result, Tensor};
+use crate::Result;
+use candle_core::{DType, Device, Tensor};
 use candle_transformers::generation::{LogitsProcessor, Sampling};
 use serde::{Deserialize, Serialize};
+use std::{fs::File, path::Path};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
-pub enum EOS {
+pub enum Eos {
     Single(u32),
     Multi(Vec<u32>),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GenerationConfig {
-    pub eos_token_id: Option<EOS>,
+    pub eos_token_id: Option<Eos>,
     pub temperature: Option<f64>,
     pub repetition_penalty: Option<f32>,
     pub top_p: Option<f64>,
@@ -29,11 +29,11 @@ impl GenerationConfig {
     }
 
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let file = File::open(path).map_err(|e| E::Msg(format!("Failed to open file: {}", e)))?;
-        serde_json::from_reader(file).map_err(|e| E::Msg(format!("failed to parse JSON: {}", e)))
+        let file = File::open(path)?;
+        Ok(serde_json::from_reader(file)?)
     }
 
-    pub fn set_eos_token_id(&mut self, eos_token_id: EOS) {
+    pub fn set_eos_token_id(&mut self, eos_token_id: Eos) {
         self.eos_token_id = Some(eos_token_id);
     }
 
@@ -55,8 +55,8 @@ impl GenerationConfig {
 
     pub fn get_eos_token_id(&self) -> Option<Vec<u32>> {
         match &self.eos_token_id {
-            Some(EOS::Single(id)) => Some(vec![*id]),
-            Some(EOS::Multi(ids)) => Some(ids.clone()),
+            Some(Eos::Single(id)) => Some(vec![*id]),
+            Some(Eos::Multi(ids)) => Some(ids.clone()),
             None => None,
         }
     }

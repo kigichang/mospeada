@@ -1,4 +1,4 @@
-use candle_core::{Error as E, Result};
+use crate::{Error as E, Result};
 use hf_hub::{
     Repo, RepoType,
     api::sync::{ApiBuilder, ApiRepo as HFApiRepo},
@@ -32,7 +32,7 @@ impl ApiRepo {
 
         let api = api.with_token(token.map(str::to_string));
 
-        let api = api.build().map_err(E::wrap)?;
+        let api = api.build()?;
 
         let repo = Repo::with_revision(
             model_id.to_string(),
@@ -51,8 +51,8 @@ impl ApiRepo {
     }
 
     pub fn download_safetensors(&self, json_file: &str) -> Result<Vec<PathBuf>> {
-        let json_file = self.get(json_file).map_err(E::wrap)?;
-        let safetensors_files = super::read_safetensors_index_file(json_file)?;
+        let json_file = self.get(json_file)?;
+        let safetensors_files = crate::utils::read_safetensors_index_file(json_file)?;
         let safetensors_files = safetensors_files
             .iter()
             .map(|v| self.get(v).map_err(E::wrap))
@@ -61,18 +61,18 @@ impl ApiRepo {
     }
 
     pub fn tokenizer_config(&self) -> Result<PathBuf> {
-        self.get("tokenizer_config.json").map_err(E::wrap)
+        Ok(self.get("tokenizer_config.json")?)
     }
 
     pub fn tokenizer(&self) -> Result<PathBuf> {
-        self.get("tokenizer.json").map_err(E::wrap)
+        Ok(self.get("tokenizer.json")?)
     }
 
     pub fn config<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
-        let config = self.get("config.json").map_err(E::wrap)?;
-        let config = File::open(config).map_err(E::wrap)?;
+        let config = self.get("config.json")?;
+        let config = File::open(config)?;
 
-        serde_json::from_reader(config).map_err(E::wrap)
+        Ok(serde_json::from_reader(config)?)
     }
 
     pub fn safetensors(&self) -> Result<Vec<PathBuf>> {
@@ -84,6 +84,6 @@ impl ApiRepo {
     }
 
     pub fn generation_config(&self) -> Result<PathBuf> {
-        self.get("generation_config.json").map_err(E::wrap)
+        Ok(self.get("generation_config.json")?)
     }
 }

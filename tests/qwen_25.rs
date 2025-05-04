@@ -1,6 +1,7 @@
-use candle_core::{DType, Result};
+use candle_core::DType;
 use candle_nn::VarBuilder;
 use candle_transformers::models::qwen2::{Config, ModelForCausalLM};
+use mospeada::Result;
 
 use minijinja::{Environment, context};
 
@@ -13,7 +14,7 @@ impl mospeada::generation::Model for Qwen2ModelForCausalLM {
         x: &candle_core::Tensor,
         start_pos: usize,
     ) -> Result<candle_core::Tensor> {
-        self.0.forward(x, start_pos)
+        Ok(self.0.forward(x, start_pos)?)
     }
 
     #[inline]
@@ -29,7 +30,7 @@ fn generate_with_qwen_25() -> Result<()> {
     let system_promp = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant.";
     let user_prompt = "Give me a short introduction to large language model.";
 
-    let device = mospeada::gpu(0)?;
+    let device = mospeada::utils::gpu(0)?;
     let dtype = if device.is_cuda() {
         DType::BF16
     } else {

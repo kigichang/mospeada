@@ -1,4 +1,4 @@
-use candle_core::{Error as E, Result};
+use crate::{Error as E, Result, bail};
 use minijinja::{Environment, Template};
 use serde;
 use std::{fs::File, path::Path, sync::Arc};
@@ -22,18 +22,13 @@ impl<'t> Tokenizer<'t> {
             || serde_json::to_string(&prompt).map_err(E::wrap),
             |t| t.render(&prompt).map_err(E::wrap),
         )?;
-        Ok(self
-            .tokenizer
-            .encode(text, true)
-            .map_err(E::wrap)?
-            .get_ids()
-            .to_vec())
+        Ok(self.tokenizer.encode(text, true)?.get_ids().to_vec())
     }
 
     fn decode(&self, tokens: &[u32]) -> Result<String> {
         match self.tokenizer.decode(tokens, true) {
             Ok(str) => Ok(str),
-            Err(err) => candle_core::bail!("cannot decode: {err}"),
+            Err(err) => bail!("cannot decode: {err}"),
         }
     }
 
@@ -94,9 +89,9 @@ fn from_files<'s, P: AsRef<Path>>(
     tokenizer: P,
     env: &'s mut Environment,
 ) -> Result<Tokenizer<'s>> {
-    let tokenizer = HFTokenizer::from_file(tokenizer).map_err(E::wrap)?;
+    let tokenizer = HFTokenizer::from_file(tokenizer)?;
     let tokenizer_config: serde_json::Value =
-        serde_json::from_reader(File::open(tokenizer_config)?).map_err(E::wrap)?;
+        serde_json::from_reader(File::open(tokenizer_config)?)?;
 
     let chat_template = tokenizer_config
         .get("chat_template")
@@ -105,8 +100,7 @@ fn from_files<'s, P: AsRef<Path>>(
     let template = if let Some(t) = chat_template {
         Some(
             env.add_template_owned(name.to_string(), t.to_string())
-                .and_then(|()| env.get_template(name))
-                .map_err(E::wrap)?,
+                .and_then(|()| env.get_template(name))?,
         )
     } else {
         None
