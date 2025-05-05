@@ -17,11 +17,16 @@ impl<'t> Tokenizer<'t> {
     pub fn tokenizer(&self) -> &HFTokenizer {
         &self.tokenizer
     }
-    pub fn apply_chat_template<S: serde::Serialize>(&self, prompt: S) -> Result<Vec<u32>> {
-        let text = self.template.as_ref().as_ref().map_or_else(
+
+    pub fn render_chat_template<S: serde::Serialize>(&self, prompt: S) -> Result<String> {
+        self.template.as_ref().as_ref().map_or_else(
             || serde_json::to_string(&prompt).map_err(E::wrap),
             |t| t.render(&prompt).map_err(E::wrap),
-        )?;
+        )
+    }
+
+    pub fn apply_chat_template<S: serde::Serialize>(&self, prompt: S) -> Result<Vec<u32>> {
+        let text = self.render_chat_template(prompt)?;
         Ok(self.tokenizer.encode(text, true)?.get_ids().to_vec())
     }
 

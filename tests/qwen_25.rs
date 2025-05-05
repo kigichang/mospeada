@@ -68,22 +68,31 @@ fn generate_with_qwen_25() -> Result<()> {
     add_generation_prompt => true,})?;
     println!("prompt init {:?}", prompt);
 
-    let mut pipeline = mospeada::generation::TextGeneration::new(
-        model,
-        device,
-        &generation_config,
-        rand::random::<u64>(),
-        64,
-    );
+    let mut pipeline =
+        mospeada::generation::TextGeneration::new(model, device, &generation_config, 0, 64);
 
-    let cb = |token: u32| {
+    let mut cb = |token: u32| {
         let t = &tokenizer.next_token(token);
         if let Ok(Some(t)) = t {
             print!("{}", t);
         }
     };
 
-    pipeline.run(prompt, 1024, cb)?;
+    //pipeline.run(prompt, 1024, cb)?;
+
+    if let Ok(next_token) = pipeline.apply(prompt, 1024) {
+        cb(next_token);
+    }
+
+    loop {
+        match pipeline.next() {
+            Ok(next_token) => cb(next_token),
+            Err(e) => {
+                println!("{:?}", e);
+                break;
+            }
+        }
+    }
 
     Ok(())
 }

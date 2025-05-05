@@ -103,6 +103,10 @@ pub struct TextGeneration<M: Model> {
     repetition_penalty: f32,
     repeat_last_n: usize,
     eos_token_id: Vec<u32>,
+
+    max_new_tokens: usize,
+    generated_tokens: usize,
+    tokens: Vec<u32>,
 }
 
 impl<M: Model> TextGeneration<M> {
@@ -120,6 +124,58 @@ impl<M: Model> TextGeneration<M> {
             repetition_penalty: config.get_repetition_penalty_or(1.),
             repeat_last_n,
             eos_token_id: config.get_eos_token_id().unwrap(),
+            max_new_tokens: config.get_max_new_tokens_or(0),
+            generated_tokens: 0,
+            tokens: Vec::new(),
+        }
+    }
+
+    pub fn apply(&mut self, ids: Vec<u32>, max_new_tokens: usize) -> Result<u32> {
+        self.model.reset();
+        self.tokens = ids;
+        self.generated_tokens = 0;
+        self.max_new_tokens = max_new_tokens;
+        self.next_token(self.tokens.len())
+    }
+
+    pub fn next(&mut self) -> Result<u32> {
+        self.next_token(1)
+    }
+
+    pub(crate) fn next_token(&mut self, context_size: usize) -> Result<u32> {
+        if self.generated_tokens >= self.max_new_tokens {
+            return Err(crate::Error::MaxNewTokenExceeded {
+                max_new_tokens: self.max_new_tokens,
+            });
+        }
+
+        let start_pos = self.tokens.len().saturating_sub(context_size);
+        let ctxt = &self.tokens[start_pos..];
+        let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
+        let logits = self.model.forward(&input, start_pos)?;
+        let logits = logits.squeeze(0)?.squeeze(0)?.to_dtype(DType::F32)?;
+        let logits = if self.repetition_penalty == 1. {
+            logits
+        } else {
+            let start_at = self.tokens.len().saturating_sub(self.repeat_last_n);
+            candle_transformers::utils::apply_repeat_penalty(
+                &logits,
+                self.repetition_penalty,
+                &self.tokens[start_at..],
+            )?
+        };
+
+        let next_token = self.logits_processor.sample(&logits)?;
+        self.tokens.push(next_token);
+        // cb(next_token);
+        self.generated_tokens += 1;
+        if self.eos_token_id.contains(&next_token) {
+            Err(crate::Error::Eos {
+                eos_token_id: next_token,
+                generated: self.generated_tokens,
+            })
+        } else {
+            Ok(next_token)
         }
     }
 
@@ -127,37 +183,74 @@ impl<M: Model> TextGeneration<M> {
     where
         F: FnMut(u32),
     {
-        self.model.reset();
-        let mut tokens = ids;
-
-        let mut generated_tokens = 0usize;
-        for index in 0..max_new_tokens {
-            let context_size = if index > 0 { 1 } else { tokens.len() };
-            let start_pos = tokens.len().saturating_sub(context_size);
-            let ctxt = &tokens[start_pos..];
-            let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
-            let logits = self.model.forward(&input, start_pos)?;
-            let logits = logits.squeeze(0)?.squeeze(0)?.to_dtype(DType::F32)?;
-            let logits = if self.repetition_penalty == 1. {
-                logits
-            } else {
-                let start_at = tokens.len().saturating_sub(self.repeat_last_n);
-                candle_transformers::utils::apply_repeat_penalty(
-                    &logits,
-                    self.repetition_penalty,
-                    &tokens[start_at..],
-                )?
-            };
-
-            let next_token = self.logits_processor.sample(&logits)?;
-            tokens.push(next_token);
-            cb(next_token);
-            generated_tokens += 1;
-            if self.eos_token_id.contains(&next_token) {
-                break;
+        match self.apply(ids, max_new_tokens) {
+            Ok(next_token) => cb(next_token),
+            Err(crate::Error::Eos {
+                eos_token_id,
+                generated,
+            }) => {
+                cb(eos_token_id);
+                return Ok(generated);
             }
+            Err(crate::Error::MaxNewTokenExceeded { max_new_tokens }) => {
+                return Ok(max_new_tokens);
+            }
+            Err(e) => return Err(e),
         }
 
-        Ok(generated_tokens)
+        loop {
+            match self.next_token(1) {
+                Ok(next_token) => cb(next_token),
+                Err(crate::Error::Eos {
+                    eos_token_id,
+                    generated,
+                }) => {
+                    cb(eos_token_id);
+                    return Ok(generated);
+                }
+                Err(crate::Error::MaxNewTokenExceeded { max_new_tokens }) => {
+                    return Ok(max_new_tokens);
+                }
+                Err(e) => return Err(e),
+            }
+        }
     }
+
+    // pub fn run<F>(&mut self, ids: Vec<u32>, max_new_tokens: usize, mut cb: F) -> Result<usize>
+    // where
+    //     F: FnMut(u32),
+    // {
+    //     self.model.reset();
+    //     let mut tokens = ids;
+
+    //     let mut generated_tokens = 0usize;
+    //     for index in 0..max_new_tokens {
+    //         let context_size = if index > 0 { 1 } else { tokens.len() };
+    //         let start_pos = tokens.len().saturating_sub(context_size);
+    //         let ctxt = &tokens[start_pos..];
+    //         let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
+    //         let logits = self.model.forward(&input, start_pos)?;
+    //         let logits = logits.squeeze(0)?.squeeze(0)?.to_dtype(DType::F32)?;
+    //         let logits = if self.repetition_penalty == 1. {
+    //             logits
+    //         } else {
+    //             let start_at = tokens.len().saturating_sub(self.repeat_last_n);
+    //             candle_transformers::utils::apply_repeat_penalty(
+    //                 &logits,
+    //                 self.repetition_penalty,
+    //                 &tokens[start_at..],
+    //             )?
+    //         };
+
+    //         let next_token = self.logits_processor.sample(&logits)?;
+    //         tokens.push(next_token);
+    //         cb(next_token);
+    //         generated_tokens += 1;
+    //         if self.eos_token_id.contains(&next_token) {
+    //             break;
+    //         }
+    //     }
+
+    //     Ok(generated_tokens)
+    // }
 }
