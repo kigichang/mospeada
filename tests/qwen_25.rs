@@ -1,7 +1,7 @@
 use candle_core::DType;
 use candle_nn::VarBuilder;
 use candle_transformers::models::qwen2::{Config, ModelForCausalLM};
-use mospeada::Result;
+use mospeada::{Result, error, repo::Repo};
 
 use minijinja::{Environment, context};
 
@@ -48,7 +48,8 @@ fn generate_with_qwen_25() -> Result<()> {
 
     println!("init model");
     let config: Config = repo.config()?;
-    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&repo.safetensors()?, dtype, &device)? };
+    let vb =
+        unsafe { VarBuilder::from_mmaped_safetensors(&repo.safetensors_files()?, dtype, &device)? };
     let model = Qwen2ModelForCausalLM(ModelForCausalLM::new(&config, vb)?);
 
     let prompt = tokenizer.apply_chat_template(context! {
@@ -71,7 +72,10 @@ fn generate_with_qwen_25() -> Result<()> {
     let mut pipeline =
         mospeada::generation::TextGeneration::new(model, device, &generation_config, 0, 64);
 
+    let mut tokens = vec![];
+
     let mut cb = |token: u32| {
+        tokens.push(token);
         let t = &tokenizer.next_token(token);
         if let Ok(Some(t)) = t {
             print!("{}", t);
@@ -86,13 +90,33 @@ fn generate_with_qwen_25() -> Result<()> {
 
     loop {
         match pipeline.next() {
-            Ok(next_token) => cb(next_token),
+            Ok(next_token) => {
+                cb(next_token);
+            }
+            Err(error::Error::Eos {
+                eos_token_id,
+                generated,
+            }) => {
+                cb(eos_token_id);
+                println!("\n\nEos token: {eos_token_id}, generated: {generated}");
+                break;
+            }
             Err(e) => {
                 println!("{:?}", e);
                 break;
             }
         }
     }
+
+    println!("got {} tokens", tokens.len());
+    let ans1 = tokenizer.decode_all()?;
+    assert_eq!(
+        ans1,
+        "Sure! A large language model is a type of artificial intelligence (AI) that can generate human-like text. These models use deep neural networks to process and understand natural language, allowing them to produce coherent and contextually relevant responses. They are commonly used in various applications such as chatbots, writing assistants, language translation, and more. Large language models have been trained on vast amounts of data from the internet and other sources, enabling them to generate high-quality text that is consistent with human-like intent and style."
+    );
+
+    let ans2 = tokenizer.decode(&tokens)?;
+    assert_eq!(ans2, ans1);
 
     Ok(())
 }

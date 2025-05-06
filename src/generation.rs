@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::{Result, repo::Repo};
 use candle_core::{DType, Device, Tensor};
 use candle_transformers::generation::{LogitsProcessor, Sampling};
 use serde::{Deserialize, Serialize};
@@ -22,10 +22,8 @@ pub struct GenerationConfig {
 }
 
 impl GenerationConfig {
-    #[cfg(feature = "hf_hub")]
-    pub fn from_pretrained(repo: &crate::hf_hub::ApiRepo) -> Result<Self> {
-        let generation_config = repo.generation_config()?;
-        Self::from_file(generation_config)
+    pub fn from_pretrained<R: Repo>(repo: &R) -> Result<Self> {
+        repo.generate_config()
     }
 
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
@@ -167,7 +165,6 @@ impl<M: Model> TextGeneration<M> {
 
         let next_token = self.logits_processor.sample(&logits)?;
         self.tokens.push(next_token);
-        // cb(next_token);
         self.generated_tokens += 1;
         if self.eos_token_id.contains(&next_token) {
             Err(crate::Error::Eos {
@@ -179,42 +176,42 @@ impl<M: Model> TextGeneration<M> {
         }
     }
 
-    pub fn run<F>(&mut self, ids: Vec<u32>, max_new_tokens: usize, mut cb: F) -> Result<usize>
-    where
-        F: FnMut(u32),
-    {
-        match self.apply(ids, max_new_tokens) {
-            Ok(next_token) => cb(next_token),
-            Err(crate::Error::Eos {
-                eos_token_id,
-                generated,
-            }) => {
-                cb(eos_token_id);
-                return Ok(generated);
-            }
-            Err(crate::Error::MaxNewTokenExceeded { max_new_tokens }) => {
-                return Ok(max_new_tokens);
-            }
-            Err(e) => return Err(e),
-        }
+    // pub fn run<F>(&mut self, ids: Vec<u32>, max_new_tokens: usize, mut cb: F) -> Result<usize>
+    // where
+    //     F: FnMut(u32),
+    // {
+    //     match self.apply(ids, max_new_tokens) {
+    //         Ok(next_token) => cb(next_token),
+    //         Err(crate::Error::Eos {
+    //             eos_token_id,
+    //             generated,
+    //         }) => {
+    //             cb(eos_token_id);
+    //             return Ok(generated);
+    //         }
+    //         Err(crate::Error::MaxNewTokenExceeded { max_new_tokens }) => {
+    //             return Ok(max_new_tokens);
+    //         }
+    //         Err(e) => return Err(e),
+    //     }
 
-        loop {
-            match self.next_token(1) {
-                Ok(next_token) => cb(next_token),
-                Err(crate::Error::Eos {
-                    eos_token_id,
-                    generated,
-                }) => {
-                    cb(eos_token_id);
-                    return Ok(generated);
-                }
-                Err(crate::Error::MaxNewTokenExceeded { max_new_tokens }) => {
-                    return Ok(max_new_tokens);
-                }
-                Err(e) => return Err(e),
-            }
-        }
-    }
+    //     loop {
+    //         match self.next_token(1) {
+    //             Ok(next_token) => cb(next_token),
+    //             Err(crate::Error::Eos {
+    //                 eos_token_id,
+    //                 generated,
+    //             }) => {
+    //                 cb(eos_token_id);
+    //                 return Ok(generated);
+    //             }
+    //             Err(crate::Error::MaxNewTokenExceeded { max_new_tokens }) => {
+    //                 return Ok(max_new_tokens);
+    //             }
+    //             Err(e) => return Err(e),
+    //         }
+    //     }
+    // }
 
     // pub fn run<F>(&mut self, ids: Vec<u32>, max_new_tokens: usize, mut cb: F) -> Result<usize>
     // where

@@ -1,21 +1,13 @@
-use crate::{Error as E, Result};
+use crate::{Error as E, Result, repo::Repo};
 use hf_hub::{
-    Repo, RepoType,
+    Repo as HFRepo, RepoType,
     api::sync::{ApiBuilder, ApiRepo as HFApiRepo},
 };
-use std::{fs::File, ops::Deref, path::PathBuf};
+use std::path::PathBuf;
 
 pub struct ApiRepo {
     model_id: String,
     repo: HFApiRepo,
-}
-
-impl Deref for ApiRepo {
-    type Target = HFApiRepo;
-
-    fn deref(&self) -> &Self::Target {
-        &self.repo
-    }
 }
 
 impl ApiRepo {
@@ -34,7 +26,7 @@ impl ApiRepo {
 
         let api = api.build()?;
 
-        let repo = Repo::with_revision(
+        let repo = HFRepo::with_revision(
             model_id.to_string(),
             RepoType::Model,
             revision.unwrap_or("main").to_string(),
@@ -46,44 +38,42 @@ impl ApiRepo {
         })
     }
 
-    pub fn model_id(&self) -> &str {
-        &self.model_id
-    }
-
     pub fn download_safetensors(&self, json_file: &str) -> Result<Vec<PathBuf>> {
-        let json_file = self.get(json_file)?;
-        let safetensors_files = crate::utils::read_safetensors_index_file(json_file)?;
+        let json_file = self.repo.get(json_file)?;
+        let safetensors_files = crate::repo::read_safetensors_index_file(json_file)?;
         let safetensors_files = safetensors_files
             .iter()
-            .map(|v| self.get(v).map_err(E::wrap))
+            .map(|v| self.repo.get(v).map_err(E::wrap))
             .collect::<Result<Vec<_>>>()?;
         Ok(safetensors_files)
     }
+}
 
-    pub fn tokenizer_config(&self) -> Result<PathBuf> {
-        Ok(self.get("tokenizer_config.json")?)
+impl Repo for ApiRepo {
+    fn model_id(&self) -> &str {
+        &self.model_id
     }
 
-    pub fn tokenizer(&self) -> Result<PathBuf> {
-        Ok(self.get("tokenizer.json")?)
+    fn tokenizer_config_file(&self) -> Result<PathBuf> {
+        Ok(self.repo.get("tokenizer_config.json")?)
     }
 
-    pub fn config<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
-        let config = self.get("config.json")?;
-        let config = File::open(config)?;
-
-        Ok(serde_json::from_reader(config)?)
+    fn tokenizer_file(&self) -> Result<PathBuf> {
+        Ok(self.repo.get("tokenizer.json")?)
     }
 
-    pub fn safetensors(&self) -> Result<Vec<PathBuf>> {
-        if let Ok(single_file) = self.get("model.safetensors") {
-            Ok(vec![single_file])
-        } else {
-            self.download_safetensors("model.safetensors.index.json")
+    fn config_file(&self) -> Result<PathBuf> {
+        Ok(self.repo.get("config.json")?)
+    }
+
+    fn safetensors_files(&self) -> Result<Vec<PathBuf>> {
+        if let Ok(single_file) = self.repo.get("model.safetensors") {
+            return Ok(vec![single_file]);
         }
+        self.download_safetensors("model.safetensors.index.json")
     }
 
-    pub fn generation_config(&self) -> Result<PathBuf> {
-        Ok(self.get("generation_config.json")?)
+    fn generate_config_file(&self) -> Result<PathBuf> {
+        Ok(self.repo.get("generation_config.json")?)
     }
 }

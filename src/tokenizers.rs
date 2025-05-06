@@ -1,4 +1,4 @@
-use crate::{Error as E, Result, bail};
+use crate::{Error as E, Result, bail, repo::Repo};
 use minijinja::{Environment, Template};
 use serde;
 use std::{fs::File, path::Path, sync::Arc};
@@ -30,7 +30,7 @@ impl<'t> Tokenizer<'t> {
         Ok(self.tokenizer.encode(text, true)?.get_ids().to_vec())
     }
 
-    fn decode(&self, tokens: &[u32]) -> Result<String> {
+    pub fn decode(&self, tokens: &[u32]) -> Result<String> {
         match self.tokenizer.decode(tokens, true) {
             Ok(str) => Ok(str),
             Err(err) => bail!("cannot decode: {err}"),
@@ -120,24 +120,20 @@ fn from_files<'s, P: AsRef<Path>>(
     })
 }
 
-pub fn load_from_cache_dir<'s, P: AsRef<Path>>(
-    cache_dir: P,
-    name: &str,
-    env: &'s mut Environment,
-) -> Result<Tokenizer<'s>> {
-    let tokenizer_config = cache_dir.as_ref().join("tokenizer_config.json");
-    let tokenizer = cache_dir.as_ref().join("tokenizer.json");
+// pub fn load_from_cache_dir<'s, P: AsRef<Path>>(
+//     cache_dir: P,
+//     name: &str,
+//     env: &'s mut Environment,
+// ) -> Result<Tokenizer<'s>> {
+//     let tokenizer_config = cache_dir.as_ref().join("tokenizer_config.json");
+//     let tokenizer = cache_dir.as_ref().join("tokenizer.json");
 
-    from_files(name, tokenizer_config, tokenizer, env)
-}
+//     from_files(name, tokenizer_config, tokenizer, env)
+// }
 
-#[cfg(feature = "hf_hub")]
-pub fn from_pretrained<'s>(
-    repo: &super::hf_hub::ApiRepo,
-    env: &'s mut Environment,
-) -> Result<Tokenizer<'s>> {
-    let tokenizer_config = repo.tokenizer_config()?;
-    let tokenizer = repo.tokenizer()?;
+pub fn from_pretrained<'s, R: Repo>(repo: &R, env: &'s mut Environment) -> Result<Tokenizer<'s>> {
+    let tokenizer_config = repo.tokenizer_config_file()?;
+    let tokenizer = repo.tokenizer_file()?;
 
     from_files(repo.model_id(), tokenizer_config, tokenizer, env)
 }

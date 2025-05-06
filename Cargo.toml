@@ -11,7 +11,7 @@ accelerate-src = { version = "0.3.2", optional = true }
 bindgen_cuda = { version = "0.1.5", optional = true }
 intel-mkl-src = { version = "0.8.1", optional = true }
 hf-hub = "0.4.2"
-minijinja = {version = "2.9.0", features = ["loader"]}
+minijinja = {version = "2.10.2", features = ["loader"]}
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 tokenizers = "0.21.1"
