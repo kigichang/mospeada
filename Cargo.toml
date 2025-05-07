@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-candle-core = "0.9.1"
-candle-nn = "0.9.1"
-candle-transformers = "0.9.1"
+candle-core = { git = "https://github.com/kigichang/candle.git", rev = "637473cb5ee5eb2c354b8359c55d62a76d184c17" }
+candle-nn = { git = "https://github.com/kigichang/candle.git", rev = "637473cb5ee5eb2c354b8359c55d62a76d184c17" }
+candle-transformers = { git = "https://github.com/kigichang/candle.git", rev = "637473cb5ee5eb2c354b8359c55d62a76d184c17" }
 accelerate-src = { version = "0.3.2", optional = true }
 bindgen_cuda = { version = "0.1.5", optional = true }
 intel-mkl-src = { version = "0.8.1", optional = true }
