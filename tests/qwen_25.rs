@@ -40,7 +40,7 @@ fn generate_with_qwen_25() -> Result<()> {
     let repo = mospeada::hf_hub::from_pretrained(model_id, None, None, None)?;
 
     println!("tokenizer init");
-    let mut tokenizer = mospeada::tokenizers::Tokenizer::from_pretrained(&repo)?;
+    let mut tokenizer = mospeada::tokenizers::from_pretrained(&repo)?;
 
     let chat_template = chat_template::from_pretrained(&repo)?;
 

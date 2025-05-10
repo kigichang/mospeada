@@ -11,21 +11,6 @@ pub struct Tokenizer {
 }
 
 impl Tokenizer {
-    pub fn new<P: AsRef<Path>>(tokenizer: P) -> Result<Self> {
-        let tokenizer = HFTokenizer::from_file(tokenizer)?;
-        Ok(Self {
-            tokenizer: Arc::new(tokenizer),
-            tokens: Vec::new(),
-            prev_index: 0,
-            current_index: 0,
-        })
-    }
-
-    pub fn from_pretrained<R: Repo>(repo: &R) -> Result<Self> {
-        let tokenizer = repo.tokenizer_file()?;
-        Self::new(tokenizer)
-    }
-
     pub fn tokenizer(&self) -> &HFTokenizer {
         &self.tokenizer
     }
@@ -86,6 +71,21 @@ impl Tokenizer {
         self.prev_index = 0;
         self.current_index = 0;
     }
+}
+
+pub fn from_pretrained<R: Repo>(repo: &R) -> Result<Tokenizer> {
+    let tokenizer = repo.tokenizer_file()?;
+    from_file(tokenizer)
+}
+
+pub fn from_file<P: AsRef<Path>>(tokenizer: P) -> Result<Tokenizer> {
+    let tokenizer = HFTokenizer::from_file(tokenizer)?;
+    Ok(Tokenizer {
+        tokenizer: Arc::new(tokenizer),
+        tokens: Vec::new(),
+        prev_index: 0,
+        current_index: 0,
+    })
 }
 
 // fn from_files<'s, P: AsRef<Path>>(
