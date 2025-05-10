@@ -2,7 +2,7 @@ use crate::Result;
 use candle_core::Device;
 use candle_core::utils;
 
-pub fn device(cpu: bool, index: usize) -> Result<Device> {
+pub(crate) fn device(cpu: bool, index: usize) -> Result<Device> {
     if cpu {
         Ok(Device::Cpu)
     } else if utils::cuda_is_available() {
@@ -19,5 +19,13 @@ pub fn cpu() -> Result<Device> {
 }
 
 pub fn gpu(index: usize) -> Result<Device> {
+    device(false, index)
+}
+
+pub fn metal(index: usize) -> Result<Device> {
+    device(false, index)
+}
+
+pub fn cuda(index: usize) -> Result<Device> {
     device(false, index)
 }

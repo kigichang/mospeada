@@ -22,7 +22,7 @@ pub struct GenerationConfig {
 }
 
 impl GenerationConfig {
-    pub fn from_pretrained<R: Repo>(repo: &R) -> Result<Self> {
+    pub fn from_pretrained<R: Repo>(repo: &R) -> Result<GenerationConfig> {
         repo.generate_config()
     }
 
@@ -128,9 +128,9 @@ impl<M: Model> TextGeneration<M> {
         }
     }
 
-    pub fn apply(&mut self, ids: Vec<u32>, max_new_tokens: usize) -> Result<u32> {
+    pub fn apply(&mut self, ids: &[u32], max_new_tokens: usize) -> Result<u32> {
         self.model.reset();
-        self.tokens = ids;
+        self.tokens = ids.to_vec();
         self.generated_tokens = 0;
         self.max_new_tokens = max_new_tokens;
         self.next_token(self.tokens.len())

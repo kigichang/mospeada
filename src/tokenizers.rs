@@ -1,33 +1,33 @@
-use crate::{Error as E, Result, bail, repo::Repo};
-use minijinja::{Environment, Template};
-use serde;
-use std::{fs::File, path::Path, sync::Arc};
+use crate::{Result, bail, repo::Repo};
+use std::{path::Path, sync::Arc};
 use tokenizers::Tokenizer as HFTokenizer;
 
 #[derive(Debug, Clone)]
-pub struct Tokenizer<'t> {
+pub struct Tokenizer {
     tokenizer: Arc<HFTokenizer>,
-    template: Arc<Option<Template<'t, 't>>>,
     tokens: Vec<u32>,
     prev_index: usize,
     current_index: usize,
 }
 
-impl<'t> Tokenizer<'t> {
+impl Tokenizer {
+    pub fn new<P: AsRef<Path>>(tokenizer: P) -> Result<Self> {
+        let tokenizer = HFTokenizer::from_file(tokenizer)?;
+        Ok(Self {
+            tokenizer: Arc::new(tokenizer),
+            tokens: Vec::new(),
+            prev_index: 0,
+            current_index: 0,
+        })
+    }
+
+    pub fn from_pretrained<R: Repo>(repo: &R) -> Result<Self> {
+        let tokenizer = repo.tokenizer_file()?;
+        Self::new(tokenizer)
+    }
+
     pub fn tokenizer(&self) -> &HFTokenizer {
         &self.tokenizer
-    }
-
-    pub fn render_chat_template<S: serde::Serialize>(&self, prompt: S) -> Result<String> {
-        self.template.as_ref().as_ref().map_or_else(
-            || serde_json::to_string(&prompt).map_err(E::wrap),
-            |t| t.render(&prompt).map_err(E::wrap),
-        )
-    }
-
-    pub fn apply_chat_template<S: serde::Serialize>(&self, prompt: S) -> Result<Vec<u32>> {
-        let text = self.render_chat_template(prompt)?;
-        Ok(self.tokenizer.encode(text, true)?.get_ids().to_vec())
     }
 
     pub fn decode(&self, tokens: &[u32]) -> Result<String> {
@@ -88,52 +88,52 @@ impl<'t> Tokenizer<'t> {
     }
 }
 
-fn from_files<'s, P: AsRef<Path>>(
-    name: &str,
-    tokenizer_config: P,
-    tokenizer: P,
-    env: &'s mut Environment,
-) -> Result<Tokenizer<'s>> {
-    let tokenizer = HFTokenizer::from_file(tokenizer)?;
-    let tokenizer_config: serde_json::Value =
-        serde_json::from_reader(File::open(tokenizer_config)?)?;
-
-    let chat_template = tokenizer_config
-        .get("chat_template")
-        .and_then(|v| v.as_str().map(str::to_string));
-
-    let template = if let Some(t) = chat_template {
-        Some(
-            env.add_template_owned(name.to_string(), t.to_string())
-                .and_then(|()| env.get_template(name))?,
-        )
-    } else {
-        None
-    };
-
-    Ok(Tokenizer {
-        tokenizer: Arc::new(tokenizer),
-        template: Arc::new(template),
-        tokens: Vec::new(),
-        prev_index: 0,
-        current_index: 0,
-    })
-}
-
-// pub fn load_from_cache_dir<'s, P: AsRef<Path>>(
-//     cache_dir: P,
+// fn from_files<'s, P: AsRef<Path>>(
 //     name: &str,
+//     tokenizer_config: P,
+//     tokenizer: P,
 //     env: &'s mut Environment,
 // ) -> Result<Tokenizer<'s>> {
-//     let tokenizer_config = cache_dir.as_ref().join("tokenizer_config.json");
-//     let tokenizer = cache_dir.as_ref().join("tokenizer.json");
+//     let tokenizer = HFTokenizer::from_file(tokenizer)?;
+//     let tokenizer_config: serde_json::Value =
+//         serde_json::from_reader(File::open(tokenizer_config)?)?;
 
-//     from_files(name, tokenizer_config, tokenizer, env)
+//     let chat_template = tokenizer_config
+//         .get("chat_template")
+//         .and_then(|v| v.as_str().map(str::to_string));
+
+//     let template = if let Some(t) = chat_template {
+//         Some(
+//             env.add_template_owned(name.to_string(), t.to_string())
+//                 .and_then(|()| env.get_template(name))?,
+//         )
+//     } else {
+//         None
+//     };
+
+//     Ok(Tokenizer {
+//         tokenizer: Arc::new(tokenizer),
+//         template: Arc::new(template),
+//         tokens: Vec::new(),
+//         prev_index: 0,
+//         current_index: 0,
+//     })
 // }
 
-pub fn from_pretrained<'s, R: Repo>(repo: &R, env: &'s mut Environment) -> Result<Tokenizer<'s>> {
-    let tokenizer_config = repo.tokenizer_config_file()?;
-    let tokenizer = repo.tokenizer_file()?;
+// // pub fn load_from_cache_dir<'s, P: AsRef<Path>>(
+// //     cache_dir: P,
+// //     name: &str,
+// //     env: &'s mut Environment,
+// // ) -> Result<Tokenizer<'s>> {
+// //     let tokenizer_config = cache_dir.as_ref().join("tokenizer_config.json");
+// //     let tokenizer = cache_dir.as_ref().join("tokenizer.json");
 
-    from_files(repo.model_id(), tokenizer_config, tokenizer, env)
-}
+// //     from_files(name, tokenizer_config, tokenizer, env)
+// // }
+
+// pub fn from_pretrained<'s, R: Repo>(repo: &R, env: &'s mut Environment) -> Result<Tokenizer<'s>> {
+//     let tokenizer_config = repo.tokenizer_config_file()?;
+//     let tokenizer = repo.tokenizer_file()?;
+
+//     from_files(repo.model_id(), tokenizer_config, tokenizer, env)
+// }

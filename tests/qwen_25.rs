@@ -1,9 +1,9 @@
 use candle_core::DType;
-use candle_nn::VarBuilder;
-use candle_transformers::models::qwen2::{Config, ModelForCausalLM};
-use mospeada::{Result, error, repo::Repo};
 
-use minijinja::{Environment, context};
+use candle_transformers::models::qwen2::ModelForCausalLM;
+use mospeada::{Result, chat_template, error, repo::Repo};
+
+use minijinja::context;
 
 struct Qwen2ModelForCausalLM(ModelForCausalLM);
 
@@ -25,7 +25,6 @@ impl mospeada::generation::Model for Qwen2ModelForCausalLM {
 
 #[test]
 fn generate_with_qwen_25() -> Result<()> {
-    let mut env: Environment<'static> = Environment::new();
     let model_id: &'static str = "Qwen/Qwen2.5-0.5B-Instruct";
     let system_promp = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant.";
     let user_prompt = "Give me a short introduction to large language model.";
@@ -38,21 +37,20 @@ fn generate_with_qwen_25() -> Result<()> {
     };
 
     println!("repo init");
-    let repo = mospeada::hf_hub::ApiRepo::from_pretrained(model_id, None, None, None)?;
+    let repo = mospeada::hf_hub::from_pretrained(model_id, None, None, None)?;
 
     println!("tokenizer init");
-    let mut tokenizer = mospeada::tokenizers::from_pretrained(&repo, &mut env)?;
+    let mut tokenizer = mospeada::tokenizers::Tokenizer::from_pretrained(&repo)?;
+
+    let chat_template = chat_template::from_pretrained(&repo)?;
 
     println!("generation config init");
     let generation_config = mospeada::generation::GenerationConfig::from_pretrained(&repo)?;
 
     println!("init model");
-    let config: Config = repo.config()?;
-    let vb =
-        unsafe { VarBuilder::from_mmaped_safetensors(&repo.safetensors_files()?, dtype, &device)? };
-    let model = Qwen2ModelForCausalLM(ModelForCausalLM::new(&config, vb)?);
+    let model = Qwen2ModelForCausalLM(repo.load_model(dtype, &device, ModelForCausalLM::new)?);
 
-    let prompt = tokenizer.apply_chat_template(context! {
+    let prompt = chat_template.apply(context! {
     messages => vec![
         context!{
             role => "system",
@@ -69,6 +67,8 @@ fn generate_with_qwen_25() -> Result<()> {
     add_generation_prompt => true,})?;
     println!("prompt init {:?}", prompt);
 
+    let prompt = tokenizer.tokenizer().encode(prompt, true)?;
+
     let mut pipeline =
         mospeada::generation::TextGeneration::new(model, device, &generation_config, 0, 64);
 
@@ -84,7 +84,7 @@ fn generate_with_qwen_25() -> Result<()> {
 
     //pipeline.run(prompt, 1024, cb)?;
 
-    if let Ok(next_token) = pipeline.apply(prompt, 1024) {
+    if let Ok(next_token) = pipeline.apply(prompt.get_ids(), 1024) {
         cb(next_token);
     }
 

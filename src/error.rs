@@ -29,12 +29,13 @@ pub enum Error {
     Tokenizer(#[from] tokenizers::Error),
 
     #[error(transparent)]
-    MiniJinja(#[from] minijinja::Error),
-
-    #[error(transparent)]
     Json(#[from] serde_json::Error),
 
-    #[cfg(feature = "hf_hub")]
+    #[cfg(feature = "chat-template")]
+    #[error(transparent)]
+    MiniJinja(#[from] minijinja::Error),
+
+    #[cfg(feature = "http")]
     #[error(transparent)]
     HfHub(#[from] hf_hub::api::sync::ApiError),
 }

@@ -1,4 +1,7 @@
 use crate::{Error as E, Result, bail, generation::GenerationConfig};
+use candle_core::quantized::gguf_file;
+use candle_core::{DType, Device};
+use candle_nn::VarBuilder;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fs::File;
@@ -8,6 +11,9 @@ use std::path::{Path, PathBuf};
 pub trait Repo {
     /// 模型 ID
     fn model_id(&self) -> &str;
+
+    /// 取得指定檔案路徑
+    fn get(&self, filename: &str) -> Result<PathBuf>;
 
     /// tokenizer_config.json 檔案路徑
     fn tokenizer_config_file(&self) -> Result<PathBuf>;
@@ -20,6 +26,9 @@ pub trait Repo {
 
     /// 所有 safetensors 檔案路徑
     fn safetensors_files(&self) -> Result<Vec<PathBuf>>;
+
+    /// pytorch_model.bin 檔案路徑
+    fn pytorch_model_file(&self) -> Result<PathBuf>;
 
     /// generate_config.json 檔案路徑
     fn generate_config_file(&self) -> Result<PathBuf>;
@@ -35,6 +44,49 @@ pub trait Repo {
     /// 回傳 GenerationConfig struct
     fn generate_config(&self) -> Result<GenerationConfig> {
         GenerationConfig::from_file(self.generate_config_file()?)
+    }
+
+    fn load_model<C, M, F>(&self, dtype: DType, device: &Device, load: F) -> Result<M>
+    where
+        C: serde::de::DeserializeOwned,
+        F: Fn(&C, VarBuilder) -> candle_core::Result<M>,
+    {
+        let config: C = self.config()?;
+
+        let vb = if let Ok(safetensor_files) = self.safetensors_files() {
+            unsafe { VarBuilder::from_mmaped_safetensors(&safetensor_files, dtype, device) }
+        } else {
+            let pytorch_model_file = self.pytorch_model_file()?;
+            VarBuilder::from_pth(pytorch_model_file, dtype, device)
+        }?;
+
+        Ok(load(&config, vb)?)
+    }
+
+    // 避開 R: std::io::Seek + std::io::Read, 與 File 型別不同的問題。
+    #[inline(always)]
+    fn call_from_gguf<R, F, M>(
+        &self,
+        ct: gguf_file::Content,
+        f: &mut R,
+        device: &Device,
+        load: F,
+    ) -> candle_core::Result<M>
+    where
+        R: std::io::Seek + std::io::Read,
+        F: Fn(gguf_file::Content, &mut R, &Device) -> candle_core::Result<M>,
+    {
+        load(ct, f, device)
+    }
+
+    fn load_gguf<M, F>(&self, filename: &str, device: &Device, load: F) -> Result<M>
+    where
+        F: Fn(gguf_file::Content, &mut File, &Device) -> candle_core::Result<M>,
+    {
+        let mut reader = File::open(self.get(filename)?)?;
+        let model = gguf_file::Content::read(&mut reader)?;
+
+        Ok(self.call_from_gguf(model, &mut reader, device, load)?)
     }
 }
 
@@ -54,6 +106,10 @@ impl LocalRepo {
             path: path.as_ref().to_owned(),
         }
     }
+
+    fn get_file<P: AsRef<Path>>(&self, p: P) -> PathBuf {
+        self.path.join(p)
+    }
 }
 
 impl Repo for LocalRepo {
@@ -61,30 +117,38 @@ impl Repo for LocalRepo {
         &self.model_id
     }
 
+    fn get(&self, filename: &str) -> Result<PathBuf> {
+        Ok(self.get_file(filename))
+    }
+
     fn tokenizer_config_file(&self) -> Result<PathBuf> {
-        Ok(self.path.join("tokenizer_config.json"))
+        Ok(self.get_file("tokenizer_config.json"))
     }
 
     fn tokenizer_file(&self) -> Result<PathBuf> {
-        Ok(self.path.join("tokenizer.json"))
+        Ok(self.get_file("tokenizer.json"))
     }
 
     fn config_file(&self) -> Result<PathBuf> {
-        Ok(self.path.join("config.json"))
+        Ok(self.get_file("config.json"))
     }
 
     fn safetensors_files(&self) -> Result<Vec<PathBuf>> {
-        let single_safatensors_file = self.path.join("model.safetensors");
+        let single_safatensors_file = self.get_file("model.safetensors");
         if single_safatensors_file.exists() {
             return Ok(vec![single_safatensors_file]);
         }
 
-        let index_file = self.path.join("model.safetensors.index.json");
+        let index_file = self.get_file("model.safetensors.index.json");
         load_safetensors(&self.path, &index_file)
     }
 
+    fn pytorch_model_file(&self) -> Result<PathBuf> {
+        Ok(self.get_file("pytorch_model.bin"))
+    }
+
     fn generate_config_file(&self) -> Result<PathBuf> {
-        Ok(self.path.join("generate_config.json"))
+        Ok(self.get_file("generate_config.json"))
     }
 }
 

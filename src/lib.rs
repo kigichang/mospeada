@@ -1,5 +1,8 @@
-#[cfg(feature = "hf_hub")]
+#[cfg(feature = "http")]
 pub mod hf_hub;
+
+#[cfg(feature = "chat-template")]
+pub mod chat_template;
 
 pub mod error;
 pub mod generation;
