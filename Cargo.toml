@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-candle-core = { version = "0.*" }
-candle-nn = { version = "0.*" }
-candle-transformers = { version = "0.*" }
+candle-core = { path = "../candle/candle-core" }
+candle-nn = { path = "../candle/candle-nn" }
+candle-transformers = { path = "../candle/candle-transformers" }
 accelerate-src = { version = "0.3.2", optional = true }
 bindgen_cuda = { version = "0.1.5", optional = true }
 intel-mkl-src = { version = "0.8.1", optional = true }
