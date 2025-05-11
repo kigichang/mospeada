@@ -29,3 +29,8 @@ pub fn metal(index: usize) -> Result<Device> {
 pub fn cuda(index: usize) -> Result<Device> {
     device(false, index)
 }
+
+pub fn normalize(t: &candle_core::Tensor) -> candle_core::Result<candle_core::Tensor> {
+    let length = t.sqr()?.sum_keepdim(candle_core::D::Minus1)?.sqrt()?;
+    t.broadcast_div(&length)
+}

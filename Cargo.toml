@@ -23,9 +23,10 @@ anyhow = "1.0.98"
 rand = "0.9.1"
 
 [features]
-default = ["http", "chat-template"]
+default = ["http", "chat-template", "debug"]
 http = ["hf-hub"]
-chat-template = ["minijinja", "minijinja-contrib/pycompat"] 
+chat-template = ["minijinja", "minijinja-contrib/pycompat"]
+debug = []
 accelerate = ["dep:accelerate-src", "candle-core/accelerate", "candle-nn/accelerate"]
 cuda = ["dep:bindgen_cuda", "candle-core/cuda", "candle-nn/cuda"]
 mkl = ["dep:intel-mkl-src", "candle-core/mkl", "candle-nn/mkl"]
