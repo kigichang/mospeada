@@ -46,6 +46,7 @@ pub trait Repo {
         GenerationConfig::from_file(self.generate_config_file()?)
     }
 
+    /// 載入模型
     fn load_model<C, M, F>(&self, dtype: DType, device: &Device, load: F) -> Result<M>
     where
         C: serde::de::DeserializeOwned,
@@ -79,6 +80,7 @@ pub trait Repo {
         load(ct, f, device)
     }
 
+    /// 載入 gguf 模型
     fn load_gguf<M, F>(&self, filename: &str, device: &Device, load: F) -> Result<M>
     where
         F: Fn(gguf_file::Content, &mut File, &Device) -> candle_core::Result<M>,
@@ -87,6 +89,11 @@ pub trait Repo {
         let model = gguf_file::Content::read(&mut reader)?;
 
         Ok(self.call_from_gguf(model, &mut reader, device, load)?)
+    }
+
+    /// 載入 huggingface tokenizer
+    fn load_tokenizer(&self) -> Result<tokenizers::Tokenizer> {
+        Ok(tokenizers::Tokenizer::from_file(self.tokenizer_file()?)?)
     }
 }
 

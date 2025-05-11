@@ -11,8 +11,25 @@ pub struct Tokenizer {
 }
 
 impl Tokenizer {
+    pub fn new(tokenizer: HFTokenizer) -> Self {
+        Tokenizer {
+            tokenizer: Arc::new(tokenizer),
+            tokens: Vec::new(),
+            prev_index: 0,
+            current_index: 0,
+        }
+    }
+
     pub fn tokenizer(&self) -> &HFTokenizer {
         &self.tokenizer
+    }
+
+    pub fn tokenizer_mut(&mut self) -> &mut HFTokenizer {
+        Arc::get_mut(&mut self.tokenizer).unwrap()
+    }
+
+    pub fn into(self) -> Result<HFTokenizer> {
+        Arc::try_unwrap(self.tokenizer).map_err(|_| crate::Error::msg("cannot unwrap Arc"))
     }
 
     pub fn decode(&self, tokens: &[u32]) -> Result<String> {
@@ -86,6 +103,11 @@ pub fn from_file<P: AsRef<Path>>(tokenizer: P) -> Result<Tokenizer> {
         prev_index: 0,
         current_index: 0,
     })
+}
+
+pub fn load_hf_tokenizer<R: Repo>(repo: &R) -> Result<HFTokenizer> {
+    let tokenizer = repo.tokenizer_file()?;
+    Ok(HFTokenizer::from_file(tokenizer)?)
 }
 
 // fn from_files<'s, P: AsRef<Path>>(
