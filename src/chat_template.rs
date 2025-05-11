@@ -21,8 +21,10 @@ impl ChatTemplate {
     pub fn new<S: AsRef<str>>(template: S) -> Result<Self> {
         let env = Box::new(Self::init_env());
 
+        // 將 str 轉成 Box<String>，以便使用 Box::leak
         let template_str = template.as_ref().to_string().into_boxed_str();
         Ok(ChatTemplate {
+            // 透過 Box::leak 轉成 'static 的生命週期
             template: Box::leak(env).template_from_str(Box::leak(template_str))?,
         })
     }
