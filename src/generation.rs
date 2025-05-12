@@ -274,7 +274,7 @@ impl<T: AsRef<Tokenizer>> TextOutputStream<T> {
         self.tokenizer.as_ref()
     }
 
-    pub fn into(self) -> T {
+    pub fn into_inner(self) -> T {
         self.tokenizer
     }
 
