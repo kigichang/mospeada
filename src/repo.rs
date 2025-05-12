@@ -1,3 +1,6 @@
+#[cfg(feature = "chat-template")]
+use crate::chat_template;
+
 use crate::{Error as E, Result, bail, generation::GenerationConfig};
 use candle_core::quantized::gguf_file;
 use candle_core::{DType, Device};
@@ -94,6 +97,20 @@ pub trait Repo {
     /// 載入 huggingface tokenizer
     fn load_tokenizer(&self) -> Result<tokenizers::Tokenizer> {
         Ok(tokenizers::Tokenizer::from_file(self.tokenizer_file()?)?)
+    }
+
+    #[cfg(feature = "chat-template")]
+    fn load_chat_template(&self) -> Result<chat_template::ChatTemplate> {
+        let tokenizer_config = self.tokenizer_config_file()?;
+        let tokenizer_config: serde_json::Value =
+            serde_json::from_reader(File::open(tokenizer_config)?)?;
+
+        let chat_template = tokenizer_config
+            .get("chat_template")
+            .and_then(|v| v.as_str())
+            .ok_or(crate::Error::msg("chat_template not found"))?;
+
+        chat_template::ChatTemplate::new(chat_template)
     }
 }
 

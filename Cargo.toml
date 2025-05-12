@@ -12,7 +12,7 @@ bindgen_cuda = { version = "0.1.5", optional = true }
 intel-mkl-src = { version = "0.8.1", optional = true }
 hf-hub = {version = "0.4.2", optional = true }
 minijinja = {version = "2.10.2", optional = true}
-minijinja-contrib = { version = "2.10.2", features = ["pycompat"] }
+minijinja-contrib = { version = "2.10.2", features = ["pycompat"], optional = true }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 tokenizers = { version = "0.21.1" }

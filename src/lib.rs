@@ -13,7 +13,6 @@ pub use error::{Error, Result};
 pub mod generation;
 pub mod pooling;
 pub mod repo;
-pub mod tokenizers;
 
 pub mod utils;
 pub use utils::*;
