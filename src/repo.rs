@@ -50,7 +50,7 @@ pub trait Repo {
     }
 
     /// 載入模型
-    fn load_model<C, M, F>(&self, dtype: DType, device: &Device, load: F) -> Result<M>
+    fn load_module<C, M, F>(&self, dtype: DType, device: &Device, load: F) -> Result<M>
     where
         C: serde::de::DeserializeOwned,
         F: Fn(&C, VarBuilder) -> candle_core::Result<M>,
@@ -100,17 +100,21 @@ pub trait Repo {
     }
 
     #[cfg(feature = "chat-template")]
-    fn load_chat_template(&self) -> Result<chat_template::ChatTemplate> {
-        let tokenizer_config = self.tokenizer_config_file()?;
-        let tokenizer_config: serde_json::Value =
-            serde_json::from_reader(File::open(tokenizer_config)?)?;
+    fn load_chat_template_from_file(&self, filename: &str) -> Result<chat_template::ChatTemplate> {
+        let chat_config = self.get(filename)?;
+        let chat_config: serde_json::Value = serde_json::from_reader(File::open(chat_config)?)?;
 
-        let chat_template = tokenizer_config
+        let chat_template = chat_config
             .get("chat_template")
             .and_then(|v| v.as_str())
             .ok_or(crate::Error::msg("chat_template not found"))?;
 
         chat_template::ChatTemplate::new(chat_template)
+    }
+
+    #[cfg(feature = "chat-template")]
+    fn load_chat_template(&self) -> Result<chat_template::ChatTemplate> {
+        self.load_chat_template_from_file("tokenizer_config.json")
     }
 }
 

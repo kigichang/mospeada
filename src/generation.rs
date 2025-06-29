@@ -1,3 +1,4 @@
+use crate::Module;
 use crate::{Result, repo::Repo};
 use candle_core::{DType, Device, Tensor};
 use candle_transformers::generation::{LogitsProcessor, Sampling};
@@ -90,12 +91,7 @@ impl GenerationConfig {
     }
 }
 
-pub trait Model {
-    fn forward(&mut self, x: &Tensor, start_pos: usize) -> Result<Tensor>;
-    fn reset(&mut self);
-}
-
-pub struct TextGeneration<M: Model> {
+pub struct TextGeneration<M: Module> {
     model: M,
     device: Device,
     logits_processor: LogitsProcessor,
@@ -108,7 +104,7 @@ pub struct TextGeneration<M: Model> {
     tokens: Vec<u32>,
 }
 
-impl<M: Model> TextGeneration<M> {
+impl<M: Module> TextGeneration<M> {
     pub fn new(
         model: M,
         device: Device,

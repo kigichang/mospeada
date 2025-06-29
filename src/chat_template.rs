@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::ops::Deref;
 
 use crate::repo::Repo;
 use crate::{Result, error};
@@ -8,6 +9,14 @@ use minijinja_contrib::pycompat;
 #[derive(Clone)]
 pub struct ChatTemplate {
     template: Template<'static, 'static>,
+}
+
+impl Deref for ChatTemplate {
+    type Target = Template<'static, 'static>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.template
+    }
 }
 
 impl ChatTemplate {
@@ -29,9 +38,9 @@ impl ChatTemplate {
         })
     }
 
-    pub fn apply<S: serde::Serialize>(&self, msg: S) -> Result<String> {
-        Ok(self.template.render(msg)?)
-    }
+    // pub fn apply<S: serde::Serialize>(&self, msg: S) -> Result<String> {
+    //     Ok(self.template.render(msg)?)
+    // }
 }
 
 pub fn from_pretrained<R: Repo>(repo: &R) -> Result<ChatTemplate> {

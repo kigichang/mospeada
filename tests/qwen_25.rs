@@ -7,14 +7,14 @@ use minijinja::context;
 
 struct Qwen2ModelForCausalLM(ModelForCausalLM);
 
-impl mospeada::generation::Model for Qwen2ModelForCausalLM {
+impl mospeada::Module for Qwen2ModelForCausalLM {
     #[inline]
     fn forward(
         &mut self,
         x: &candle_core::Tensor,
         start_pos: usize,
-    ) -> Result<candle_core::Tensor> {
-        Ok(self.0.forward(x, start_pos)?)
+    ) -> candle_core::Result<candle_core::Tensor> {
+        self.0.forward(x, start_pos)
     }
 
     #[inline]
@@ -49,7 +49,7 @@ fn generate_with_qwen_25() -> Result<()> {
     let generation_config = mospeada::generation::GenerationConfig::from_pretrained(&repo)?;
 
     println!("init model");
-    let model = Qwen2ModelForCausalLM(repo.load_model(dtype, &device, ModelForCausalLM::new)?);
+    let model = Qwen2ModelForCausalLM(repo.load_module(dtype, &device, ModelForCausalLM::new)?);
 
     let prompt = chat_template.apply(context! {
     messages => vec![

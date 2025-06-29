@@ -1,3 +1,5 @@
+use candle_core::Device;
+use candle_core::utils;
 pub fn conv_pth_to_safetensors<P: AsRef<std::path::Path>>(
     pth: P,
     dest: P,
@@ -139,4 +141,26 @@ pub fn print_tensor<S: candle_core::WithDType + std::fmt::Debug>(
     }
 
     Ok(())
+}
+
+// This function prints the device environment information
+// such as number of threads, CUDA availability, MKL availability, etc.
+// It uses the `utils` module from the `candle_core` crate to get this information.
+pub fn device_environment(device: &Device) {
+    println!("cuda_is_available? {}", utils::cuda_is_available());
+    println!("metal_is_available? {}", utils::metal_is_available());
+    println!("has_mkl? {}", utils::has_mkl());
+    println!("has_accelerate? {}", utils::has_accelerate());
+    println!("with_avx? {}", utils::with_avx());
+    println!("with_f16c? {}", utils::with_f16c());
+    println!("with_neon? {}", utils::with_neon());
+    println!("with_simd128? {}", utils::with_simd128());
+    println!("num of threads: {}", utils::get_num_threads());
+
+    println!("device: {:?}", device);
+    println!("\tis cuda? {}", device.is_cuda());
+    println!("\tis metal? {}", device.is_metal());
+    println!("\tis cpu? {}", device.is_cpu());
+    println!("\tlocation {:?}", device.location());
+    println!("\tsupport bf16? {}", device.supports_bf16());
 }
